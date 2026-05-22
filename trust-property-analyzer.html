@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trust Property Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #12100e;
+  --ink2: #2e2a25;
+  --muted: #7a7268;
+  --cream: #f6f2eb;
+  --warm: #fdfaf5;
+  --border: #ddd8ce;
+  --gold: #b5882a;
+  --gold-lt: #f5edda;
+  --sage: #3d5c3a;
+  --sage-lt: #e7f0e6;
+  --rust: #a83820;
+  --rust-lt: #faeae6;
+  --slate: #2f4560;
+  --slate-lt: #e6edf5;
+  --shadow: 0 2px 24px rgba(18,16,14,0.08);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+/* ─── SCREEN: INPUT ─── */
+#screen-input {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(61,92,58,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(181,136,42,0.06) 0%, transparent 50%),
+    var(--cream);
+}
+
+.brand {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1.5px solid var(--gold);
+  border-radius: 50%;
+  margin-bottom: 1rem;
+  color: var(--gold);
+  font-size: 1.4rem;
+}
+
+.brand h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2.2rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.brand p {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.input-card {
+  background: var(--warm);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 2.2rem;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: var(--shadow);
+}
+
+.input-card label {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.input-card input[type="text"],
+.input-card input[type="password"] {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--cream);
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 1.1rem;
+}
+
+.input-card input:focus { border-color: var(--gold); }
+
+.input-card input::placeholder { color: #b5b0a8; }
+
+.key-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.key-row > div { flex: 1; margin-bottom: 0; }
+.key-row input { margin-bottom: 0; }
+
+.btn-save-key {
+  padding: 0.75rem 1rem;
+  background: var(--ink2);
+  color: var(--cream);
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.2s;
+}
+.btn-save-key:hover { background: var(--ink); }
+
+.key-status {
+  font-size: 0.72rem;
+  margin-top: -0.85rem;
+  margin-bottom: 1rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 3px;
+  display: none;
+}
+.key-status.ok { display:block; background:var(--sage-lt); color:var(--sage); }
+.key-status.err { display:block; background:var(--rust-lt); color:var(--rust); }
+
+.btn-analyze {
+  width: 100%;
+  padding: 0.95rem;
+  background: var(--gold);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn-analyze:hover { background: #9a7220; }
+.btn-analyze:active { transform: scale(0.99); }
+.btn-analyze:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+.criteria-preview {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+}
+
+.criteria-preview summary {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+
+.criteria-list {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem 1rem;
+}
+
+.criteria-item {
+  font-size: 0.72rem;
+  color: var(--muted);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.criteria-item .ci { color: var(--gold); flex-shrink:0; }
+
+/* ─── SCREEN: LOADING ─── */
+#screen-loading {
+  display: none;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: var(--ink);
+  color: var(--cream);
+}
+
+.loading-logo {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.4rem;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+}
+
+.loading-stage {
+  font-size: 0.82rem;
+  color: #7a7060;
+  letter-spacing: 0.08em;
+  text-align: center;
+  max-width: 380px;
+  line-height: 1.6;
+  min-height: 2.4rem;
+  transition: opacity 0.3s;
+}
+
+.loading-bar-track {
+  width: 260px;
+  height: 2px;
+  background: #2a2820;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loading-bar-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.8s ease;
+}
+
+.loading-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 280px;
+}
+
+.lstep {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #3a3830;
+  transition: color 0.3s;
+}
+
+.lstep.active { color: #c9b060; }
+.lstep.done { color: #5a8058; }
+
+.lstep-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2a2820;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+.lstep.active .lstep-dot { background: var(--gold); animation: pulse 1s infinite; }
+.lstep.done .lstep-dot { background: var(--sage); }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ─── SCREEN: REPORT ─── */
+#screen-report {
+  display: none;
+  background: var(--cream);
+}
+
+/* Print controls */
+.print-bar {
+  background: var(--ink);
+  padding: 0.85rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.print-bar-left {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1rem;
+  color: #c8bfb0;
+  letter-spacing: 0.05em;
+}
+
+.print-bar-right { display: flex; gap: 0.75rem; }
+
+.btn-print, .btn-new {
+  padding: 0.5rem 1.1rem;
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  border: none;
+}
+
+.btn-print { background: var(--gold); color: white; }
+.btn-print:hover { background: #9a7220; }
+.btn-new { background: #2a2820; color: #8a8070; }
+.btn-new:hover { background: #3a3830; color: #c8bfb0; }
+
+/* Report body */
+.report-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 2rem 4rem;
+}
+
+/* Report sections get rendered by JS */
+.report-section {
+  margin-bottom: 2.5rem;
+}
+
+.r-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.r-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 1rem;
+  line-height: 1.2;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.6rem;
+}
+
+.r-prose {
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: var(--ink2);
+}
+
+/* Score card */
+.score-card {
+  background: var(--ink);
+  border-radius: 10px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  margin: 2rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.score-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(181,136,42,0.15) 0%, transparent 60%);
+}
+
+.score-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #7a7060;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.score-number {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 5.5rem;
+  font-weight: 700;
+  line-height: 1;
+  position: relative;
+  margin-bottom: 0.25rem;
+}
+
+.score-denom {
+  font-size: 1.5rem;
+  color: #4a4538;
+  vertical-align: super;
+  font-weight: 400;
+}
+
+.score-verdict {
+  font-size: 0.88rem;
+  color: #9a9080;
+  margin-top: 0.5rem;
+  font-style: italic;
+  position: relative;
+}
+
+.score-bar-wrap {
+  margin: 1.25rem auto 0;
+  max-width: 300px;
+  position: relative;
+}
+
+.score-bar-track {
+  height: 6px;
+  background: #2a2820;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+
+.score-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.55rem;
+  color: #3a3830;
+  font-family: monospace;
+}
+
+/* Category scores */
+.cat-scores {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.cat-score-card {
+  background: var(--warm);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  text-align: center;
+}
+
+.cat-score-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.cat-score-val {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Checklist */
+.checklist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin: 1rem 0;
+}
+
+.chk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  padding: 0.45rem 0.6rem;
+  border-radius: 4px;
+}
+
+.chk-item.pass { background: var(--sage-lt); color: #2a4a28; }
+.chk-item.fail { background: var(--rust-lt); color: #7a2010; }
+.chk-item.warn { background: var(--gold-lt); color: #6a4a10; }
+.chk-item.na   { background: #f0ede8; color: var(--muted); }
+
+.chk-icon { flex-shrink: 0; font-size: 0.85rem; }
+
+/* Pros/Cons */
+.pc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.pc-col { border-radius: 6px; overflow: hidden; }
+
+.pc-header {
+  padding: 0.65rem 1rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: white;
+}
+
+.pc-header.pro { background: var(--sage); }
+.pc-header.con { background: var(--rust); }
+
+.pc-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; }
+
+.pc-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink2);
+}
+
+.pc-item:last-child { border-bottom: none; }
+.pc-item .pi { flex-shrink: 0; }
+.pi.pro { color: var(--sage); }
+.pi.con { color: var(--rust); }
+
+/* Risk grid */
+.risk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.risk-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.risk-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  background: var(--warm);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.rdot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.rdot.critical { background: #c0392b; }
+.rdot.high { background: #e67e22; }
+.rdot.moderate { background: #d4a020; }
+.rdot.low { background: #27ae60; }
+
+.rbadge {
+  margin-left: auto;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.18rem 0.45rem;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.rbadge.critical { background: #fde8e4; color: #c0392b; }
+.rbadge.high { background: #fef0e0; color: #b06020; }
+.rbadge.moderate { background: #fefae0; color: #8a7020; }
+.rbadge.low { background: #e8f5e8; color: #27ae60; }
+
+.risk-body {
+  padding: 0.7rem 0.9rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
+/* Verdict block */
+.verdict-block {
+  background: var(--ink);
+  border-radius: 8px;
+  padding: 1.75rem 1.8rem;
+  margin: 1rem 0;
+  color: var(--cream);
+}
+
+.vb-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.vb-text {
+  font-size: 0.88rem;
+  line-height: 1.8;
+  color: #b0a898;
+}
+
+.vb-action {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  background: #1a1810;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 4px 4px 0;
+  font-size: 0.85rem;
+  color: #c8b870;
+  font-style: italic;
+  line-height: 1.55;
+}
+
+/* Stat grid */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.stat-card {
+  background: var(--warm);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.stat-val {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.stat-lbl {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* Divider */
+hr.r-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* Error */
+.error-card {
+  background: var(--rust-lt);
+  border: 1px solid #e0b0a0;
+  border-radius: 6px;
+  padding: 1.25rem 1.5rem;
+  color: var(--rust);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin-top: 1rem;
+}
+
+/* Print styles */
+@media print {
+  .print-bar { display: none !important; }
+  #screen-report { display: block !important; }
+  #screen-input, #screen-loading { display: none !important; }
+  body { background: white; }
+  .score-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pc-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+@media (max-width: 600px) {
+  .cat-scores { grid-template-columns: 1fr 1fr; }
+  .checklist, .pc-grid, .risk-grid, .stat-row { grid-template-columns: 1fr; }
+  .criteria-list { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ INPUT SCREEN ═══════════════════════════════ -->
+<div id="screen-input">
+  <div class="brand">
+    <div class="brand-mark">⌂</div>
+    <h1>Trust Property Analyzer</h1>
+    <p>Family Trust · Mountain Compound Search · Est. 2026</p>
+  </div>
+
+  <div class="input-card">
+    <div class="key-row">
+      <div>
+        <label>Anthropic API Key</label>
+        <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+      </div>
+      <button class="btn-save-key" onclick="saveKey()">Save</button>
+    </div>
+    <div class="key-status" id="key-status"></div>
+
+    <label>Property Listing URL</label>
+    <input type="text" id="url-input" placeholder="https://www.zillow.com/homedetails/..." autocomplete="off">
+
+    <div id="error-box" class="error-card" style="display:none;"></div>
+
+    <button class="btn-analyze" id="btn-go" onclick="startAnalysis()">
+      Analyze Property →
+    </button>
+
+    <details class="criteria-preview">
+      <summary>View Trust Criteria</summary>
+      <div class="criteria-list" style="margin-top:0.75rem;">
+        <div class="criteria-item"><span class="ci">◆</span>Under $250K asking price</div>
+        <div class="criteria-item"><span class="ci">◆</span>Elevation above 1,500 ft</div>
+        <div class="criteria-item"><span class="ci">◆</span>No flood zone designation</div>
+        <div class="criteria-item"><span class="ci">◆</span>No NFIP withdrawal issues</div>
+        <div class="criteria-item"><span class="ci">◆</span>Low crime rate</div>
+        <div class="criteria-item"><span class="ci">◆</span>Near town pop. under 5,000</div>
+        <div class="criteria-item"><span class="ci">◆</span>Nature-based tourism nearby</div>
+        <div class="criteria-item"><span class="ci">◆</span>Farms / farmers markets nearby</div>
+        <div class="criteria-item"><span class="ci">◆</span>Historical significance in area</div>
+        <div class="criteria-item"><span class="ci">◆</span>Lot min. ½ acre</div>
+        <div class="criteria-item"><span class="ci">◆</span>No biohazard / contamination</div>
+        <div class="criteria-item"><span class="ci">◆</span>Not near power lines / towers</div>
+        <div class="criteria-item"><span class="ci">◆</span>No active renters / deed rights</div>
+        <div class="criteria-item"><span class="ci">◆</span>No water intrusion / dirt basement</div>
+        <div class="criteria-item"><span class="ci">◆</span>Water on site preferred</div>
+        <div class="criteria-item"><span class="ci">◆</span>Garden/orchard space</div>
+        <div class="criteria-item"><span class="ci">◇</span>3+ acres preferred</div>
+        <div class="criteria-item"><span class="ci">◇</span>Scenic view</div>
+        <div class="criteria-item"><span class="ci">◇</span>&lt; 12hrs to Fort Pierce FL</div>
+        <div class="criteria-item"><span class="ci">◇</span>Brick/concrete exterior</div>
+        <div class="criteria-item"><span class="ci">◇</span>2+ bed / 2+ bath</div>
+        <div class="criteria-item"><span class="ci">◇</span>Historic character</div>
+        <div class="criteria-item"><span class="ci">◇</span>Home Depot within 1 hour</div>
+        <div class="criteria-item"><span class="ci">◇</span>Town shopping/dining amenities</div>
+      </div>
+      <p style="font-size:0.68rem; color:var(--muted); margin-top:0.75rem;">◆ Required &nbsp;·&nbsp; ◇ Nice to have</p>
+    </details>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ LOADING SCREEN ═══════════════════════════════ -->
+<div id="screen-loading">
+  <div class="loading-logo">Trust Property Analyzer</div>
+  <div class="loading-stage" id="loading-stage">Initializing research pipeline...</div>
+  <div class="loading-bar-track">
+    <div class="loading-bar-fill" id="loading-bar"></div>
+  </div>
+  <div class="loading-steps">
+    <div class="lstep" id="lstep-0"><div class="lstep-dot"></div>Fetching property details</div>
+    <div class="lstep" id="lstep-1"><div class="lstep-dot"></div>Researching location & market</div>
+    <div class="lstep" id="lstep-2"><div class="lstep-dot"></div>Checking flood, risk & contamination</div>
+    <div class="lstep" id="lstep-3"><div class="lstep-dot"></div>Evaluating against trust criteria</div>
+    <div class="lstep" id="lstep-4"><div class="lstep-dot"></div>Running council analysis</div>
+    <div class="lstep" id="lstep-5"><div class="lstep-dot"></div>Scoring & building report</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ REPORT SCREEN ═══════════════════════════════ -->
+<div id="screen-report">
+  <div class="print-bar">
+    <div class="print-bar-left">Trust Property Report</div>
+    <div class="print-bar-right">
+      <button class="btn-new" onclick="resetApp()">← New Analysis</button>
+      <button class="btn-print" onclick="window.print()">Save / Print PDF</button>
+    </div>
+  </div>
+  <div class="report-body" id="report-body"></div>
+</div>
+
+<script>
+// ══════════════════════════════════
+// API KEY MANAGEMENT
+// ══════════════════════════════════
+function saveKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  const status = document.getElementById('key-status');
+  if (!key.startsWith('sk-ant-')) {
+    status.className = 'key-status err';
+    status.textContent = 'Key should start with sk-ant-';
+    return;
+  }
+  localStorage.setItem('trust_api_key', key);
+  status.className = 'key-status ok';
+  status.textContent = '✓ Key saved to this browser';
+}
+
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('trust_api_key');
+  if (saved) {
+    document.getElementById('api-key-input').value = saved;
+    const status = document.getElementById('key-status');
+    status.className = 'key-status ok';
+    status.textContent = '✓ Key loaded from browser storage';
+  }
+});
+
+// ══════════════════════════════════
+// CLAUDE API CALL
+// ══════════════════════════════════
+async function callClaude(apiKey, systemPrompt, userPrompt, maxTokens = 4000) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  if (!data.content?.[0]?.text) throw new Error('Empty response from API');
+  return data.content[0].text;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ══════════════════════════════════
+// SYSTEM PROMPT — TRUST CRITERIA
+// ══════════════════════════════════
+const TRUST_SYSTEM = `You are a property analyst for a three-member family trust (mother in Fort Pierce FL, two adult sons in Connecticut). The trust mandate is GENERATIONAL WEALTH PRESERVATION and adding a mountain compound property.
+
+TRUST FINANCIALS:
+- Liquid capital: ~$145,000
+- Existing asset: paid-off property in Fort Pierce, FL (~$350,000)
+- Total trust value: ~$495,000
+- Purchase method: Cash preferred
+
+REQUIRED CRITERIA (hard requirements — failure on these significantly lowers the score):
+- Price under $250,000
+- Elevation above 1,500 ft (mountain/highland area preferred)
+- NOT in a FEMA flood zone (or document clearly if it is)
+- Check if the municipality participates in NFIP (flag if withdrawn like Galax VA)
+- No documented biohazard, Superfund site, or contamination within 2 miles
+- Not adjacent to active industrial farmland or golf courses (pesticide/herbicide risk)
+- Not near high-voltage power lines, data centers, or cell towers
+- Lot minimum 1/2 acre
+- Low crime rate (below state average preferred)
+- Nearest town population under 5,000
+- Nature-based tourism in the region (hiking, fishing, parks, etc.)
+- Local farms and/or farmers markets within 20 miles
+- Area has some historical significance
+- Town does not have unusually high density of apartments or subsidized housing
+- No evidence of water intrusion in the structure
+- No dirt floor basement
+- No evidence of severe rodent infestation history
+- No active renters on the property
+- No deeded rights, easements, or encumbrances that restrict use
+- Space for a small garden and orchard
+
+NICE TO HAVE (these improve the score but are not required):
+- 3+ acres
+- Scenic view
+- Less than 12 hours drive to Fort Pierce, FL
+- Space for animals / livestock
+- Town has shopping, dining, or basic amenities
+- Home Depot or equivalent within 1 hour drive
+- Brick or concrete/stone exterior
+- Updated mechanicals (HVAC, electrical, plumbing)
+- At least 2 bedrooms and 2 bathrooms
+- Historic character or architectural interest
+
+TRUST GOALS:
+1. Generational wealth preservation — property must hold or grow in value
+2. Mountain compound — usable by any family member at any time, no full-time resident initially
+3. Self-sufficiency potential — water on site (stream/pond/spring), garden space, clean air and water
+4. Low carrying cost — minimal taxes, no HOA, manageable insurance
+5. Eventual STR potential to offset costs (not required)
+
+SCORING (0.0 to 10.0, one decimal):
+Score the property on a 0-10 scale where:
+- 0-2: Do not pursue. Fundamental disqualifiers present.
+- 3-4: Significant concerns. Would need major concessions.
+- 5-6: Viable but with notable risks. Proceed cautiously.
+- 7-8: Good fit. Meets most criteria. Move to due diligence.
+- 9-10: Exceptional. Rare find. Make an offer immediately.
+
+Score sub-categories:
+- Location Quality (flood, elevation, crime, environment)
+- Property & Building (size, condition, structure, features)
+- Market & Value (price vs. assessed, appreciation potential, STR viability)
+- Trust Fit (compound vision, family logistics, generational hold)
+- Risk Profile (insurance, contamination, structural, legal)
+
+Always output valid JSON in the exact structure specified in each request.`;
+
+// ══════════════════════════════════
+// LOADING UI HELPERS
+// ══════════════════════════════════
+function setStep(i, state) {
+  for (let j = 0; j < 6; j++) {
+    const el = document.getElementById(`lstep-${j}`);
+    if (j < i) el.className = 'lstep done';
+    else if (j === i) el.className = `lstep ${state}`;
+    else el.className = 'lstep';
+  }
+  document.getElementById('loading-bar').style.width = `${Math.round((i / 5) * 100)}%`;
+}
+
+function setStage(text) {
+  document.getElementById('loading-stage').textContent = text;
+}
+
+// ══════════════════════════════════
+// MAIN ANALYSIS PIPELINE
+// ══════════════════════════════════
+async function startAnalysis() {
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  const url = document.getElementById('url-input').value.trim();
+  const errBox = document.getElementById('error-box');
+  errBox.style.display = 'none';
+
+  if (!apiKey.startsWith('sk-ant-')) {
+    errBox.style.display = 'block';
+    errBox.textContent = 'Please enter and save a valid Anthropic API key (starts with sk-ant-).';
+    return;
+  }
+  if (!url.startsWith('http')) {
+    errBox.style.display = 'block';
+    errBox.textContent = 'Please enter a valid property listing URL (Zillow, Realtor.com, etc.).';
+    return;
+  }
+
+  // Switch to loading screen
+  document.getElementById('screen-input').style.display = 'none';
+  const loadEl = document.getElementById('screen-loading');
+  loadEl.style.display = 'flex';
+
+  try {
+    // ── STEP 0: Fetch property details ──────────────────────────
+    setStep(0, 'active'); setStage('Fetching property listing details...');
+    await sleep(300);
+
+    const propertyData = await callClaude(apiKey, TRUST_SYSTEM,
+      `Fetch and extract all available details from this property listing URL: ${url}
+
+Return ONLY a JSON object with this exact structure (no markdown, no preamble):
+{
+  "address": "full street address",
+  "city": "city name",
+  "state": "state abbreviation",
+  "zip": "zip code",
+  "county": "county name",
+  "asking_price": 000000,
+  "price_formatted": "$000,000",
+  "bedrooms": 0,
+  "bathrooms": 0,
+  "sqft": 0,
+  "lot_acres": 0.0,
+  "year_built": 0,
+  "property_type": "Single Family / Farm / etc",
+  "listing_source": "Zillow / Realtor.com / etc",
+  "listing_url": "${url}",
+  "tax_assessed": 0,
+  "annual_taxes": 0,
+  "hoa_monthly": 0,
+  "water_source": "well / municipal / unknown",
+  "sewer_type": "septic / sewer / unknown",
+  "heating": "type of heating",
+  "exterior": "material description",
+  "basement": "description or none",
+  "garage": "description or none",
+  "notable_features": ["feature1", "feature2"],
+  "listing_agent": "name if available",
+  "days_on_market": 0,
+  "zillow_saves": 0,
+  "last_sold_price": 0,
+  "last_sold_year": 0,
+  "description": "full listing description text",
+  "photo_urls": []
+}
+
+If any field is unknown, use null. Do not include any text outside the JSON object.`, 1500);
+
+    let property;
+    try {
+      property = JSON.parse(propertyData.replace(/```json|```/g, '').trim());
+    } catch(e) {
+      // Try to extract JSON from the response
+      const match = propertyData.match(/\{[\s\S]*\}/);
+      if (match) property = JSON.parse(match[0]);
+      else throw new Error('Could not parse property data. Make sure the URL is a valid listing page.');
+    }
+
+    setStep(0, 'done'); await sleep(500);
+
+    // ── STEP 1: Location & market research ──────────────────────
+    setStep(1, 'active'); setStage(`Researching ${property.city}, ${property.state}...`);
+
+    const locationData = await callClaude(apiKey, TRUST_SYSTEM,
+      `Research the location and market for this property:
+Address: ${property.address}, ${property.city}, ${property.state} ${property.zip}
+County: ${property.county}
+Asking Price: ${property.price_formatted}
+Lot: ${property.lot_acres} acres
+
+Research and return ONLY a JSON object (no markdown):
+{
+  "elevation_ft": 0,
+  "elevation_note": "description",
+  "population_city": 0,
+  "population_county": 0,
+  "population_trend": "growing / declining / stable",
+  "median_household_income": 0,
+  "poverty_rate_pct": 0,
+  "crime_rate_vs_state": "below / at / above / significantly above",
+  "crime_note": "brief detail",
+  "unemployment_rate_pct": 0,
+  "major_employers": ["employer1"],
+  "tourism_nearby": true,
+  "tourism_description": "what kind and examples",
+  "farmers_markets_nearby": true,
+  "farms_nearby": true,
+  "historical_significance": true,
+  "historical_note": "brief description",
+  "nature_access": ["trail1", "park1"],
+  "nearest_home_depot_miles": 0,
+  "nearest_town_with_amenities": "town name and distance",
+  "drive_to_fort_pierce_fl_hours": 0,
+  "drive_to_hartford_ct_hours": 0,
+  "avg_home_price_area": 0,
+  "price_per_sqft_area": 0,
+  "market_trend": "appreciating / flat / declining",
+  "days_on_market_avg": 0,
+  "str_avg_annual_revenue": 0,
+  "str_occupancy_rate_pct": 0,
+  "str_note": "detail",
+  "high_apartment_density": false,
+  "subsidized_housing_concentration": "low / moderate / high",
+  "industrial_farming_nearby": false,
+  "golf_course_nearby": false,
+  "power_lines_nearby": false,
+  "cell_tower_nearby": false,
+  "data_center_nearby": false,
+  "infrastructure_concern_note": "any concerns"
+}`, 2000);
+
+    let location;
+    try {
+      location = JSON.parse(locationData.replace(/```json|```/g, '').trim());
+    } catch(e) {
+      const match = locationData.match(/\{[\s\S]*\}/);
+      location = match ? JSON.parse(match[0]) : {};
+    }
+
+    setStep(1, 'done'); await sleep(500);
+
+    // ── STEP 2: Flood, risk & contamination ─────────────────────
+    setStep(2, 'active'); setStage('Checking flood zones, NFIP status, contamination...');
+
+    const riskData = await callClaude(apiKey, TRUST_SYSTEM,
+      `Research environmental and insurance risks for:
+Address: ${property.address}, ${property.city}, ${property.state} ${property.zip}
+County: ${property.county}
+
+Research and return ONLY a JSON object (no markdown):
+{
+  "fema_flood_zone": "X / AE / A / VE / unknown",
+  "flood_zone_description": "what it means",
+  "in_high_risk_flood_zone": false,
+  "nfip_participation": "participates / withdrawn / unknown",
+  "nfip_note": "detail — flag if municipality has withdrawn from NFIP",
+  "recent_flood_events": ["event description with year"],
+  "federal_disaster_declarations": ["declaration detail"],
+  "wildfire_risk": "low / moderate / high",
+  "wildfire_note": "detail",
+  "superfund_sites_nearby": false,
+  "superfund_note": "detail or none",
+  "industrial_contamination_nearby": false,
+  "contamination_note": "detail or none",
+  "well_water_quality_concern": false,
+  "well_water_note": "any documented issues in county",
+  "radon_risk": "low / moderate / high",
+  "radon_note": "EPA radon zone info",
+  "seismic_risk": "low / moderate / high",
+  "landslide_risk": "low / moderate / high",
+  "private_flood_insurance_available": "likely / uncertain / unlikely",
+  "estimated_annual_flood_insurance": 0,
+  "overall_environmental_risk": "low / moderate / high / critical",
+  "risk_summary": "2-3 sentence plain English summary of the biggest risks at this specific location"
+}`, 2000);
+
+    let risk;
+    try {
+      risk = JSON.parse(riskData.replace(/```json|```/g, '').trim());
+    } catch(e) {
+      const match = riskData.match(/\{[\s\S]*\}/);
+      risk = match ? JSON.parse(match[0]) : {};
+    }
+
+    setStep(2, 'done'); await sleep(500);
+
+    // ── STEP 3: Trust criteria evaluation ───────────────────────
+    setStep(3, 'active'); setStage('Evaluating against all trust criteria...');
+
+    const criteriaData = await callClaude(apiKey, TRUST_SYSTEM,
+      `Evaluate this property against all trust criteria.
+
+Property: ${property.address}, ${property.city}, ${property.state}
+Price: ${property.price_formatted} | Beds: ${property.bedrooms} | Baths: ${property.bathrooms} | Sqft: ${property.sqft} | Lot: ${property.lot_acres} acres
+Year Built: ${property.year_built} | Exterior: ${property.exterior} | Basement: ${property.basement}
+Water: ${property.water_source} | Sewer: ${property.sewer_type}
+Features: ${JSON.stringify(property.notable_features)}
+
+Location data: ${JSON.stringify(location)}
+Risk data: ${JSON.stringify(risk)}
+
+Return ONLY a JSON object (no markdown):
+{
+  "required_criteria": [
+    {"criterion": "Price under $250K", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Elevation above 1,500 ft", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Not in flood zone", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "NFIP participation", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "No biohazard/contamination nearby", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Not near farmland/golf courses", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Not near power lines/towers", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Lot min 1/2 acre", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Low crime rate", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Nearest town under 5,000 pop", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Nature tourism nearby", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Farms/farmers markets nearby", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Historical significance nearby", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Low apartment/subsidized density", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "No water intrusion evidence", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "No dirt floor basement", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "No active renters", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "No deeded rights/easements", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Garden/orchard space", "status": "pass/fail/warn/unknown", "note": "detail"}
+  ],
+  "nice_to_have": [
+    {"criterion": "3+ acres", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Scenic view", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Under 12hrs to Fort Pierce FL", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Animal/livestock space", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Town shopping/dining", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Home Depot within 1 hour", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Brick/concrete/stone exterior", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Updated mechanicals", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "2+ bed / 2+ bath", "status": "pass/fail/warn/unknown", "note": "detail"},
+    {"criterion": "Historic character", "status": "pass/fail/warn/unknown", "note": "detail"}
+  ],
+  "hard_disqualifiers": [],
+  "top_pros": ["pro1", "pro2", "pro3", "pro4", "pro5"],
+  "top_cons": ["con1", "con2", "con3", "con4", "con5"],
+  "must_verify_before_offer": ["item1", "item2", "item3"]
+}`, 2500);
+
+    let criteria;
+    try {
+      criteria = JSON.parse(criteriaData.replace(/```json|```/g, '').trim());
+    } catch(e) {
+      const match = criteriaData.match(/\{[\s\S]*\}/);
+      criteria = match ? JSON.parse(match[0]) : { required_criteria: [], nice_to_have: [], top_pros: [], top_cons: [] };
+    }
+
+    setStep(3, 'done'); await sleep(500);
+
+    // ── STEP 4: Council analysis ─────────────────────────────────
+    setStep(4, 'active'); setStage('Running multi-advisor council analysis...');
+
+    const councilData = await callClaude(apiKey, TRUST_SYSTEM,
+      `You are a council of five independent advisors analyzing this property for the family trust. Each advisor has a distinct perspective. Synthesize a council verdict.
+
+PROPERTY BRIEF:
+- Address: ${property.address}, ${property.city}, ${property.state}
+- Price: ${property.price_formatted} | ${property.bedrooms}bd/${property.bathrooms}ba | ${property.sqft} sqft | ${property.lot_acres} acres
+- Year built: ${property.year_built} | ${property.property_type}
+- Elevation: ${location.elevation_ft} ft | Pop: ${location.population_city}
+- Crime: ${location.crime_rate_vs_state} state avg | Market: ${location.market_trend}
+- Flood zone: ${risk.fema_flood_zone} | NFIP: ${risk.nfip_participation}
+- Environmental risk: ${risk.overall_environmental_risk}
+- Hard disqualifiers found: ${JSON.stringify(criteria.hard_disqualifiers)}
+
+Return ONLY a JSON object (no markdown):
+{
+  "council_agrees": ["point of convergence 1", "point of convergence 2", "point of convergence 3"],
+  "council_clashes": "2-3 sentences describing the genuine disagreement among advisors",
+  "blind_spots": ["thing everyone missed 1", "thing everyone missed 2"],
+  "recommendation": "3-4 sentence clear, direct recommendation — not 'it depends', a real answer",
+  "one_thing_first": "Single most important action to take before making any decision. One sentence.",
+  "fort_pierce_angle": "1-2 sentences on how the FL property equity factors into this decision",
+  "negotiation_note": "Is the price negotiable? What leverage exists? What should they offer if they proceed?"
+}`, 1500);
+
+    let council;
+    try {
+      council = JSON.parse(councilData.replace(/```json|```/g, '').trim());
+    } catch(e) {
+      const match = councilData.match(/\{[\s\S]*\}/);
+      council = match ? JSON.parse(match[0]) : {};
+    }
+
+    setStep(4, 'done'); await sleep(500);
+
+    // ── STEP 5: Scoring ──────────────────────────────────────────
+    setStep(5, 'active'); setStage('Calculating trust fit score...');
+
+    const scoreData = await callClaude(apiKey, TRUST_SYSTEM,
+      `Score this property for the family trust on a scale of 0.0 to 10.0.
+
+All research summary:
+Property: ${property.address}, ${property.city}, ${property.state} — ${property.price_formatted}
+Elevation: ${location.elevation_ft}ft | Pop: ${location.population_city} | Crime: ${location.crime_rate_vs_state}
+Flood: ${risk.fema_flood_zone} | NFIP: ${risk.nfip_participation} | Env risk: ${risk.overall_environmental_risk}
+Market trend: ${location.market_trend} | Tourism: ${location.tourism_nearby} | Historical: ${location.historical_significance}
+Hard disqualifiers: ${JSON.stringify(criteria.hard_disqualifiers)}
+Required criteria passes: ${criteria.required_criteria?.filter(c=>c.status==='pass').length} of ${criteria.required_criteria?.length}
+Nice-to-have passes: ${criteria.nice_to_have?.filter(c=>c.status==='pass').length} of ${criteria.nice_to_have?.length}
+
+Return ONLY a JSON object (no markdown):
+{
+  "score_location": 0.0,
+  "score_property": 0.0,
+  "score_market": 0.0,
+  "score_trust_fit": 0.0,
+  "score_risk": 0.0,
+  "score_overall": 0.0,
+  "score_color": "green / yellow / orange / red",
+  "score_verdict": "one sentence that captures the essence of the score",
+  "score_rationale": "3-4 sentences explaining exactly why this score was given, what pushed it up, what pulled it down",
+  "deal_type": "make offer now / due diligence required / negotiate aggressively / pass",
+  "suggested_offer": 0,
+  "suggested_offer_note": "why this offer price"
+}
+
+Scoring guide:
+- 9.0-10.0: Exceptional. Make an offer NOW.
+- 7.0-8.9: Strong. Move to due diligence immediately.
+- 5.0-6.9: Viable with conditions. Proceed cautiously.
+- 3.0-4.9: Significant concerns. Major concessions needed.
+- 0.0-2.9: Do not pursue. Fundamental disqualifiers.
+
+Be honest. Do not inflate scores. Hard disqualifiers should cap the score at 4.9 maximum.`, 1000);
+
+    let scoring;
+    try {
+      scoring = JSON.parse(scoreData.replace(/```json|```/g, '').trim());
+    } catch(e) {
+      const match = scoreData.match(/\{[\s\S]*\}/);
+      scoring = match ? JSON.parse(match[0]) : { score_overall: 0 };
+    }
+
+    setStep(5, 'done');
+    document.getElementById('loading-bar').style.width = '100%';
+    await sleep(600);
+
+    // ── RENDER REPORT ────────────────────────────────────────────
+    renderReport(property, location, risk, criteria, council, scoring);
+
+  } catch(err) {
+    loadEl.style.display = 'none';
+    document.getElementById('screen-input').style.display = 'flex';
+    const errBox = document.getElementById('error-box');
+    errBox.style.display = 'block';
+    errBox.innerHTML = `<strong>Analysis failed:</strong> ${err.message}<br><small style="opacity:0.7">Check your API key and URL, then try again.</small>`;
+  }
+}
+
+// ══════════════════════════════════
+// REPORT RENDERER
+// ══════════════════════════════════
+function getScoreColor(score) {
+  if (score >= 8) return '#27ae60';
+  if (score >= 6) return '#b5882a';
+  if (score >= 4) return '#e67e22';
+  return '#c0392b';
+}
+
+function statusIcon(status) {
+  if (status === 'pass') return '✓';
+  if (status === 'fail') return '✗';
+  if (status === 'warn') return '⚠';
+  return '?';
+}
+
+function riskLevel(riskStr) {
+  if (!riskStr) return 'moderate';
+  const s = riskStr.toLowerCase();
+  if (s.includes('critical')) return 'critical';
+  if (s.includes('high')) return 'high';
+  if (s.includes('low')) return 'low';
+  return 'moderate';
+}
+
+function fmt(n, prefix = '') {
+  if (n === null || n === undefined) return 'Unknown';
+  if (typeof n === 'number') return prefix + n.toLocaleString();
+  return n;
+}
+
+function renderReport(p, loc, risk, criteria, council, scoring) {
+  const score = scoring.score_overall || 0;
+  const scoreColor = getScoreColor(score);
+  const today = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  const rb = document.getElementById('report-body');
+
+  rb.innerHTML = `
+    <!-- HEADER -->
+    <div style="text-align:center; margin-bottom:2.5rem; padding-bottom:2rem; border-bottom:1px solid var(--border);">
+      <div style="font-size:0.65rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--muted); margin-bottom:0.4rem;">Family Trust Property Analysis · ${today}</div>
+      <h1 style="font-family:'Cormorant Garamond',serif; font-size:2.2rem; font-weight:700; color:var(--ink); line-height:1.15; margin-bottom:0.5rem;">${p.address || 'Property Analysis'}</h1>
+      <div style="font-size:1rem; color:var(--muted);">${p.city || ''}, ${p.state || ''} ${p.zip || ''} · ${p.price_formatted || 'Price unknown'}</div>
+      ${p.listing_url ? `<a href="${p.listing_url}" target="_blank" style="font-size:0.75rem; color:var(--gold); text-decoration:none; margin-top:0.4rem; display:inline-block;">View Original Listing ↗</a>` : ''}
+    </div>
+
+    <!-- SCORE CARD -->
+    <div class="score-card" style="margin-bottom:2.5rem;">
+      <div class="score-label">Trust Fit Score</div>
+      <div class="score-number" style="color:${scoreColor};">
+        ${score.toFixed(1)}<span class="score-denom"> / 10</span>
+      </div>
+      <div class="score-verdict">${scoring.score_verdict || ''}</div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-track">
+          <div class="score-bar-fill" style="width:${score*10}%; background:${scoreColor};"></div>
+        </div>
+        <div class="score-ticks"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
+      </div>
+      ${scoring.deal_type ? `<div style="margin-top:1rem; display:inline-block; background:${scoreColor}22; border:1px solid ${scoreColor}55; color:${scoreColor}; padding:0.4rem 1.1rem; border-radius:3px; font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.1em;">${scoring.deal_type.toUpperCase()}</div>` : ''}
+    </div>
+
+    <!-- CATEGORY SCORES -->
+    <div class="cat-scores" style="margin-bottom:2rem;">
+      <div class="cat-score-card">
+        <div class="cat-score-label">Location</div>
+        <div class="cat-score-val" style="color:${getScoreColor(scoring.score_location||0)}">${(scoring.score_location||0).toFixed(1)}</div>
+      </div>
+      <div class="cat-score-card">
+        <div class="cat-score-label">Property</div>
+        <div class="cat-score-val" style="color:${getScoreColor(scoring.score_property||0)}">${(scoring.score_property||0).toFixed(1)}</div>
+      </div>
+      <div class="cat-score-card">
+        <div class="cat-score-label">Market</div>
+        <div class="cat-score-val" style="color:${getScoreColor(scoring.score_market||0)}">${(scoring.score_market||0).toFixed(1)}</div>
+      </div>
+      <div class="cat-score-card">
+        <div class="cat-score-label">Trust Fit</div>
+        <div class="cat-score-val" style="color:${getScoreColor(scoring.score_trust_fit||0)}">${(scoring.score_trust_fit||0).toFixed(1)}</div>
+      </div>
+      <div class="cat-score-card">
+        <div class="cat-score-label">Risk</div>
+        <div class="cat-score-val" style="color:${getScoreColor(scoring.score_risk||0)}">${(scoring.score_risk||0).toFixed(1)}</div>
+      </div>
+      <div class="cat-score-card" style="border-color:${scoreColor}88; background:${scoreColor}0d;">
+        <div class="cat-score-label" style="color:${scoreColor};">Overall</div>
+        <div class="cat-score-val" style="color:${scoreColor};">${score.toFixed(1)}</div>
+      </div>
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- SCORE RATIONALE -->
+    ${scoring.score_rationale ? `
+    <div class="verdict-block" style="margin-bottom:2rem;">
+      <div class="vb-label">Why This Score</div>
+      <div class="vb-text">${scoring.score_rationale}</div>
+      ${scoring.suggested_offer ? `<div class="vb-action">💡 Suggested offer: <strong>$${scoring.suggested_offer.toLocaleString()}</strong> — ${scoring.suggested_offer_note || ''}</div>` : ''}
+    </div>` : ''}
+
+    <!-- PROPERTY SPECS -->
+    <div class="report-section">
+      <div class="r-label">Property Details</div>
+      <div class="r-title">The Property</div>
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-val" style="color:var(--gold);">${p.price_formatted || 'N/A'}</div>
+          <div class="stat-lbl">Asking Price</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${p.bedrooms || '?'}bd / ${p.bathrooms || '?'}ba</div>
+          <div class="stat-lbl">Bedrooms / Baths</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${p.sqft ? p.sqft.toLocaleString() : 'N/A'} sf</div>
+          <div class="stat-lbl">Finished Sq Ft</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${p.lot_acres ? p.lot_acres + ' ac' : 'N/A'}</div>
+          <div class="stat-lbl">Lot Size</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.5rem 1rem; margin-top:1rem;">
+        ${[
+          ['Year Built', p.year_built],
+          ['Property Type', p.property_type],
+          ['Exterior', p.exterior],
+          ['Basement', p.basement],
+          ['Water Source', p.water_source],
+          ['Sewer', p.sewer_type],
+          ['Heating', p.heating],
+          ['Annual Taxes', p.annual_taxes ? '$'+p.annual_taxes.toLocaleString() : 'Unknown'],
+          ['Tax Assessed', p.tax_assessed ? '$'+p.tax_assessed.toLocaleString() : 'Unknown'],
+          ['Days on Market', p.days_on_market],
+          ['Last Sold', p.last_sold_year ? `$${(p.last_sold_price||0).toLocaleString()} (${p.last_sold_year})` : 'Unknown'],
+          ['HOA', p.hoa_monthly ? '$'+p.hoa_monthly+'/mo' : 'None'],
+        ].map(([k,v]) => `
+          <div style="padding:0.5rem 0; border-bottom:1px solid var(--border);">
+            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); margin-bottom:0.1rem;">${k}</div>
+            <div style="font-size:0.85rem; font-weight:500;">${v || 'Unknown'}</div>
+          </div>`).join('')}
+      </div>
+      ${p.notable_features?.length ? `
+      <div style="margin-top:0.75rem;">
+        <div style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); margin-bottom:0.5rem;">Notable Features</div>
+        <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+          ${p.notable_features.map(f => `<span style="background:var(--gold-lt); color:var(--gold); font-size:0.72rem; padding:0.25rem 0.65rem; border-radius:3px; border:1px solid #e0cc90;">${f}</span>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- LOCATION & MARKET -->
+    <div class="report-section">
+      <div class="r-label">Location & Market</div>
+      <div class="r-title">${p.city}, ${p.state} — Area Overview</div>
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-val" style="color:${(loc.elevation_ft||0)>=1500 ? 'var(--sage)' : 'var(--rust)'};">${loc.elevation_ft ? loc.elevation_ft.toLocaleString()+"'" : 'N/A'}</div>
+          <div class="stat-lbl">Elevation</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${loc.population_city ? loc.population_city.toLocaleString() : 'N/A'}</div>
+          <div class="stat-lbl">City Population</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${loc.median_household_income ? '$'+loc.median_household_income.toLocaleString() : 'N/A'}</div>
+          <div class="stat-lbl">Median HH Income</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" style="color:${loc.crime_rate_vs_state==='below' ? 'var(--sage)' : loc.crime_rate_vs_state?.includes('above') ? 'var(--rust)' : 'var(--gold)'}">${loc.crime_rate_vs_state || 'N/A'}</div>
+          <div class="stat-lbl">Crime vs State Avg</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:1rem;">
+        ${loc.tourism_description ? `<div style="background:var(--sage-lt); border-radius:5px; padding:0.85rem 1rem; font-size:0.82rem; color:#2a4a28; line-height:1.55;"><strong style="font-size:0.62rem; display:block; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.3rem; color:var(--sage);">Tourism</strong>${loc.tourism_description}</div>` : ''}
+        ${loc.historical_note ? `<div style="background:var(--gold-lt); border-radius:5px; padding:0.85rem 1rem; font-size:0.82rem; color:#5a4010; line-height:1.55;"><strong style="font-size:0.62rem; display:block; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.3rem; color:var(--gold);">Historical Significance</strong>${loc.historical_note}</div>` : ''}
+        ${loc.str_note ? `<div style="background:var(--slate-lt); border-radius:5px; padding:0.85rem 1rem; font-size:0.82rem; color:#2a3a4a; line-height:1.55;"><strong style="font-size:0.62rem; display:block; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.3rem; color:var(--slate);">Short-Term Rental Market</strong>Avg revenue: ${loc.str_avg_annual_revenue ? '$'+loc.str_avg_annual_revenue.toLocaleString() : 'N/A'}/yr at ${loc.str_occupancy_rate_pct || '?'}% occupancy. ${loc.str_note}</div>` : ''}
+        ${loc.infrastructure_concern_note ? `<div style="background:var(--rust-lt); border-radius:5px; padding:0.85rem 1rem; font-size:0.82rem; color:#7a2010; line-height:1.55;"><strong style="font-size:0.62rem; display:block; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.3rem; color:var(--rust);">Infrastructure Concerns</strong>${loc.infrastructure_concern_note}</div>` : ''}
+      </div>
+      <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+        ${loc.nature_access?.map(n => `<span style="background:#e8f0e6; color:var(--sage); font-size:0.7rem; padding:0.2rem 0.6rem; border-radius:3px;">🌲 ${n}</span>`).join('') || ''}
+      </div>
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- RISK & ENVIRONMENT -->
+    <div class="report-section">
+      <div class="r-label">Risk Assessment</div>
+      <div class="r-title">Flood, Environmental & Insurance Risks</div>
+      <div class="risk-grid">
+        <div class="risk-card">
+          <div class="risk-head">
+            <div class="rdot ${risk.in_high_risk_flood_zone ? 'critical' : 'low'}"></div>
+            Flood Zone Status
+            <span class="rbadge ${risk.in_high_risk_flood_zone ? 'critical' : 'low'}">${risk.fema_flood_zone || 'Unknown'}</span>
+          </div>
+          <div class="risk-body">${risk.flood_zone_description || 'See FEMA flood map.'}</div>
+        </div>
+        <div class="risk-card">
+          <div class="risk-head">
+            <div class="rdot ${risk.nfip_participation === 'withdrawn' ? 'critical' : risk.nfip_participation === 'participates' ? 'low' : 'moderate'}"></div>
+            NFIP / Flood Insurance
+            <span class="rbadge ${risk.nfip_participation === 'withdrawn' ? 'critical' : risk.nfip_participation === 'participates' ? 'low' : 'moderate'}">${risk.nfip_participation || 'Unknown'}</span>
+          </div>
+          <div class="risk-body">${risk.nfip_note || 'Verify municipal NFIP participation before closing.'}</div>
+        </div>
+        <div class="risk-card">
+          <div class="risk-head">
+            <div class="rdot ${risk.superfund_sites_nearby ? 'high' : 'low'}"></div>
+            Contamination / Superfund
+            <span class="rbadge ${risk.superfund_sites_nearby ? 'high' : 'low'}">${risk.superfund_sites_nearby ? 'Concern' : 'Clear'}</span>
+          </div>
+          <div class="risk-body">${risk.contamination_note || risk.superfund_note || 'No known Superfund sites in immediate area.'}</div>
+        </div>
+        <div class="risk-card">
+          <div class="risk-head">
+            <div class="rdot ${risk.well_water_quality_concern ? 'high' : 'low'}"></div>
+            Well Water Quality
+            <span class="rbadge ${risk.well_water_quality_concern ? 'high' : 'low'}">${risk.well_water_quality_concern ? 'Concern' : 'Low Risk'}</span>
+          </div>
+          <div class="risk-body">${risk.well_water_note || 'Test well water before closing regardless of area history.'}</div>
+        </div>
+        <div class="risk-card">
+          <div class="risk-head">
+            <div class="rdot ${riskLevel(risk.wildfire_risk)}"></div>
+            Wildfire Risk
+            <span class="rbadge ${riskLevel(risk.wildfire_risk)}">${risk.wildfire_risk || 'Unknown'}</span>
+          </div>
+          <div class="risk-body">${risk.wildfire_note || 'Assess local fire district response capability.'}</div>
+        </div>
+        <div class="risk-card">
+          <div class="risk-head">
+            <div class="rdot ${riskLevel(risk.radon_risk)}"></div>
+            Radon Risk
+            <span class="rbadge ${riskLevel(risk.radon_risk)}">${risk.radon_risk || 'Unknown'}</span>
+          </div>
+          <div class="risk-body">${risk.radon_note || 'Test during inspection period.'} ${risk.landslide_risk ? 'Landslide risk: ' + risk.landslide_risk + '.' : ''}</div>
+        </div>
+      </div>
+      ${risk.recent_flood_events?.length ? `
+      <div style="margin-top:1rem; background:var(--rust-lt); border-left:3px solid var(--rust); border-radius:0 5px 5px 0; padding:0.85rem 1rem;">
+        <div style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--rust); font-weight:600; margin-bottom:0.5rem;">Recent Flood / Disaster Events</div>
+        ${risk.recent_flood_events.map(e => `<div style="font-size:0.8rem; color:#7a2010; margin-bottom:0.25rem;">• ${e}</div>`).join('')}
+      </div>` : ''}
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- TRUST CRITERIA CHECKLIST -->
+    <div class="report-section">
+      <div class="r-label">Criteria Evaluation</div>
+      <div class="r-title">Required Trust Criteria</div>
+      <div class="checklist">
+        ${(criteria.required_criteria || []).map(c => `
+          <div class="chk-item ${c.status}">
+            <span class="chk-icon">${statusIcon(c.status)}</span>
+            <div>
+              <div style="font-weight:600; font-size:0.8rem;">${c.criterion}</div>
+              <div style="font-size:0.72rem; opacity:0.8; margin-top:0.1rem;">${c.note || ''}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      ${criteria.nice_to_have?.length ? `
+      <div style="margin-top:1.5rem;">
+        <div style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.15em; color:var(--muted); font-weight:600; margin-bottom:0.75rem;">Nice to Have</div>
+        <div class="checklist">
+          ${criteria.nice_to_have.map(c => `
+            <div class="chk-item ${c.status}" style="opacity:${c.status==='pass'?1:0.7}">
+              <span class="chk-icon">${statusIcon(c.status)}</span>
+              <div>
+                <div style="font-weight:600; font-size:0.78rem;">${c.criterion}</div>
+                <div style="font-size:0.7rem; opacity:0.8; margin-top:0.1rem;">${c.note || ''}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+      ${criteria.hard_disqualifiers?.length ? `
+      <div style="margin-top:1.25rem; background:var(--rust-lt); border:1px solid #e0b0a0; border-radius:6px; padding:1rem 1.1rem;">
+        <div style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--rust); font-weight:600; margin-bottom:0.5rem;">⚠ Hard Disqualifiers Found</div>
+        ${criteria.hard_disqualifiers.map(d => `<div style="font-size:0.82rem; color:#8a2010; margin-bottom:0.3rem;">• ${d}</div>`).join('')}
+      </div>` : ''}
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- PROS & CONS -->
+    <div class="report-section">
+      <div class="r-label">Decision Framework</div>
+      <div class="r-title">Pros & Cons</div>
+      <div class="pc-grid">
+        <div class="pc-col">
+          <div class="pc-header pro">✓ &nbsp; Advantages</div>
+          <div class="pc-body">
+            ${(criteria.top_pros || []).map(p => `
+              <div class="pc-item">
+                <span class="pi pro">✓</span>
+                <span>${p}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="pc-col">
+          <div class="pc-header con">✗ &nbsp; Concerns</div>
+          <div class="pc-body">
+            ${(criteria.top_cons || []).map(c => `
+              <div class="pc-item">
+                <span class="pi con">✗</span>
+                <span>${c}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- COUNCIL VERDICT -->
+    <div class="report-section">
+      <div class="r-label">Multi-Advisor Council</div>
+      <div class="r-title">Council Analysis & Recommendation</div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.85rem; margin-bottom:1rem;">
+        ${council.council_agrees?.length ? `
+        <div style="background:var(--sage-lt); border:1px solid #b0ccae; border-radius:6px; padding:1rem 1.1rem;">
+          <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.15em; color:var(--sage); font-weight:600; margin-bottom:0.5rem;">Council Agrees</div>
+          ${council.council_agrees.map(a => `<div style="font-size:0.8rem; color:#2a4a28; margin-bottom:0.3rem; line-height:1.4;">• ${a}</div>`).join('')}
+        </div>` : ''}
+        ${council.council_clashes ? `
+        <div style="background:var(--rust-lt); border:1px solid #e0b0a0; border-radius:6px; padding:1rem 1.1rem;">
+          <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.15em; color:var(--rust); font-weight:600; margin-bottom:0.5rem;">Where They Clashed</div>
+          <div style="font-size:0.8rem; color:#7a2010; line-height:1.6;">${council.council_clashes}</div>
+        </div>` : ''}
+      </div>
+
+      ${council.blind_spots?.length ? `
+      <div style="background:var(--slate-lt); border:1px solid #b0c0d0; border-radius:6px; padding:1rem 1.1rem; margin-bottom:0.85rem;">
+        <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.15em; color:var(--slate); font-weight:600; margin-bottom:0.5rem;">Blind Spots Caught</div>
+        ${council.blind_spots.map(b => `<div style="font-size:0.8rem; color:#2a3a4a; margin-bottom:0.3rem; line-height:1.4;">• ${b}</div>`).join('')}
+      </div>` : ''}
+
+      <div class="verdict-block">
+        <div class="vb-label">Recommendation</div>
+        <div class="vb-text">${council.recommendation || ''}</div>
+        ${council.fort_pierce_angle ? `<div class="vb-action" style="margin-top:0.85rem; border-color:#5a8058;">💡 Fort Pierce angle: ${council.fort_pierce_angle}</div>` : ''}
+        ${council.negotiation_note ? `<div class="vb-action">🤝 Negotiation: ${council.negotiation_note}</div>` : ''}
+        ${council.one_thing_first ? `<div class="vb-action" style="border-color:var(--gold); margin-top:0.75rem; font-weight:500;">⚡ Do first: ${council.one_thing_first}</div>` : ''}
+      </div>
+    </div>
+
+    <hr class="r-divider">
+
+    <!-- MUST VERIFY -->
+    ${criteria.must_verify_before_offer?.length ? `
+    <div class="report-section">
+      <div class="r-label">Due Diligence</div>
+      <div class="r-title">Must Verify Before Any Offer</div>
+      <div style="display:flex; flex-direction:column; gap:0;">
+        ${criteria.must_verify_before_offer.map((item, i) => `
+          <div style="display:flex; gap:1rem; padding:0.85rem 0; border-bottom:1px solid var(--border); align-items:flex-start;">
+            <div style="font-family:'Cormorant Garamond',serif; font-size:1.3rem; color:var(--border); font-weight:700; min-width:1.8rem; text-align:right; line-height:1;">0${i+1}</div>
+            <div style="font-size:0.88rem; color:var(--ink2); line-height:1.55;">${item}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- FOOTER -->
+    <div style="margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border); text-align:center; font-size:0.68rem; color:var(--muted); line-height:1.8;">
+      Report generated ${today} by the Family Trust Property Analyzer.<br>
+      This report is for internal family trust use only and does not constitute legal, financial, or investment advice.<br>
+      Consult a licensed attorney, financial advisor, and property inspector before any transaction.<br>
+      ${p.listing_url ? `<a href="${p.listing_url}" style="color:var(--gold);">View original listing ↗</a>` : ''}
+    </div>
+  `;
+
+  document.getElementById('screen-loading').style.display = 'none';
+  document.getElementById('screen-report').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+function resetApp() {
+  document.getElementById('screen-report').style.display = 'none';
+  document.getElementById('screen-input').style.display = 'flex';
+  document.getElementById('url-input').value = '';
+  document.getElementById('error-box').style.display = 'none';
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>
