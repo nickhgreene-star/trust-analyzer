@@ -960,13 +960,36 @@ async function startAnalysis() {
 
   try {
     // ── STEP 0: Fetch property details ──────────────────────────
-    setStep(0, 'active'); setStage('Fetching property listing details...');
+    setStep(0, 'active'); setStage('Fetching property listing page...');
     await sleep(300);
 
-    const propertyData = await callClaude(apiKey, TRUST_SYSTEM,
-      `Fetch and extract all available details from this property listing URL: ${url}
+    // Actually fetch the listing page via the worker
+    let pageText = '';
+    try {
+      const pageRes = await fetch(`${PROXY_URL}/fetch-page`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (pageRes.ok) {
+        const pageData = await pageRes.json();
+        pageText = pageData.text || '';
+      }
+    } catch(e) {
+      console.warn('Page fetch failed, proceeding with URL only:', e.message);
+    }
 
-Return ONLY a JSON object with this exact structure (no markdown, no preamble):
+    setStage('Extracting property details from listing...');
+
+    const propertyData = await callClaude(apiKey, TRUST_SYSTEM,
+      `Extract all property details from this listing.
+
+LISTING URL: ${url}
+
+LISTING PAGE CONTENT (raw text extracted from the page — use this as your primary source):
+${pageText ? pageText.slice(0, 10000) : 'Page content unavailable.'}
+
+Based on the above content, extract and return ONLY a JSON object with this exact structure (no markdown, no preamble):
 {
   "address": "full street address",
   "city": "city name",
