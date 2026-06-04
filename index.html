@@ -722,6 +722,20 @@ hr.r-divider {
     <label>Property Listing URL</label>
     <input type="text" id="url-input" placeholder="https://www.zillow.com/homedetails/..." autocomplete="off">
 
+    <label>Listing Screenshot or PDF <span style="font-size:0.68rem; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">— screenshot the full listing and drop it here, or paste details manually below</span></label>
+
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()" style="width:100%; border:1.5px dashed var(--border); border-radius:6px; padding:1.25rem 1rem; margin-bottom:0.75rem; text-align:center; cursor:pointer; background:var(--cream); transition:all 0.2s; position:relative;">
+      <input type="file" id="file-input" accept="image/*,.pdf" style="display:none" onchange="handleFileSelect(this.files[0])">
+      <div id="drop-label" style="font-size:0.82rem; color:var(--muted); line-height:1.6;">
+        📎 Drop screenshot or PDF here, or click to browse<br>
+        <span style="font-size:0.7rem;">PNG, JPG, PDF accepted</span>
+      </div>
+      <div id="file-preview" style="display:none; font-size:0.8rem; color:var(--sage); margin-top:0.3rem;"></div>
+    </div>
+
+    <label>Or Paste Listing Details Manually <span style="font-size:0.68rem; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">— price, beds, baths, sqft, lot, description</span></label>
+    <textarea id="listing-paste" placeholder="Price: $189,000&#10;3 bed / 2 bath · 1,850 sqft · 4.2 acres&#10;Year built: 1948 · Well & septic&#10;Description: Charming farmhouse on 4 wooded acres with stream..." style="width:100%; border:1.5px solid var(--border); border-radius:6px; padding:0.75rem 1rem; font-family:'DM Sans',sans-serif; font-size:0.85rem; color:var(--ink); background:var(--cream); outline:none; resize:vertical; min-height:80px; margin-bottom:1.1rem; line-height:1.5;" onfocus="this.style.borderColor='#b5882a'" onblur="this.style.borderColor='#ddd8ce'"></textarea>
+
     <div id="error-box" class="error-card" style="display:none;"></div>
 
     <button class="btn-analyze" id="btn-go" onclick="startAnalysis()">
@@ -791,6 +805,93 @@ hr.r-divider {
 </div>
 
 <script>
+// ══════════════════════════════════
+// FILE HANDLING (screenshot / PDF)
+// ══════════════════════════════════
+let uploadedFile = null; // { base64, mediaType, name }
+
+function handleFileSelect(file) {
+  if (!file) return;
+  const dz = document.getElementById('drop-zone');
+  const preview = document.getElementById('file-preview');
+  const label = document.getElementById('drop-label');
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    let mediaType = file.type || 'image/png';
+
+    // Block PDFs
+    if (mediaType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      preview.style.display = 'block';
+      preview.style.color = 'var(--rust)';
+      preview.innerHTML = `PDF detected. Use a screenshot instead: press <strong>Cmd+Shift+3</strong> on Mac to capture the screen as PNG, then drop it here. &mdash; <a href="#" onclick="clearFile(event)" style="color:var(--rust);">clear</a>`;
+      label.style.display = 'none';
+      uploadedFile = null;
+      return;
+    }
+
+    // Force supported mime type
+    if (!['image/jpeg','image/png','image/gif','image/webp'].includes(mediaType)) {
+      mediaType = 'image/png';
+    }
+
+    // Compress via canvas — resize to max 1600px wide, JPEG quality 0.82
+    // This keeps text readable for vision while staying well under 10MB
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1600;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const compressed = canvas.toDataURL('image/jpeg', 0.82);
+      const base64 = compressed.split(',')[1];
+      const sizeKB = Math.round(base64.length * 0.75 / 1024);
+
+      uploadedFile = { base64, mediaType: 'image/jpeg', name: file.name };
+      label.style.display = 'none';
+      preview.style.display = 'block';
+      preview.style.color = 'var(--sage)';
+      preview.innerHTML = `✓ ${file.name} (${sizeKB < 1024 ? sizeKB+'KB' : (sizeKB/1024).toFixed(1)+'MB'}) &mdash; <a href="#" onclick="clearFile(event)" style="color:var(--rust);">remove</a>`;
+      dz.style.borderColor = '#3d5c3a';
+      dz.style.background = '#e7f0e6';
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearFile(e) {
+  e.preventDefault();
+  uploadedFile = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('drop-label').style.display = 'block';
+  document.getElementById('file-preview').style.display = 'none';
+  const dz = document.getElementById('drop-zone');
+  dz.style.borderColor = 'var(--border)';
+  dz.style.background = 'var(--cream)';
+}
+
+// Drag and drop events
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = document.getElementById('drop-zone');
+  if (!dz) return;
+  dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = '#b5882a'; dz.style.background = '#f5edda'; });
+  dz.addEventListener('dragleave', () => { dz.style.borderColor = 'var(--border)'; dz.style.background = 'var(--cream)'; });
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dz.style.borderColor = 'var(--border)';
+    dz.style.background = 'var(--cream)';
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  });
+});
+
 // ══════════════════════════════════
 // API KEY MANAGEMENT
 // ══════════════════════════════════
@@ -939,6 +1040,7 @@ function setStage(text) {
 async function startAnalysis() {
   const apiKey = document.getElementById('api-key-input').value.trim();
   const url = document.getElementById('url-input').value.trim();
+  const pastedDetails = document.getElementById('listing-paste').value.trim();
   const errBox = document.getElementById('error-box');
   errBox.style.display = 'none';
 
@@ -952,6 +1054,11 @@ async function startAnalysis() {
     errBox.textContent = 'Please enter a valid property listing URL (Zillow, Realtor.com, etc.).';
     return;
   }
+  if (!uploadedFile && !pastedDetails) {
+    errBox.style.display = 'block';
+    errBox.textContent = 'Please either drop a screenshot/PDF of the listing, or paste the key details manually. This ensures accurate property data.';
+    return;
+  }
 
   // Switch to loading screen
   document.getElementById('screen-input').style.display = 'none';
@@ -963,7 +1070,7 @@ async function startAnalysis() {
     setStep(0, 'active'); setStage('Fetching property listing page...');
     await sleep(300);
 
-    // Actually fetch the listing page via the worker
+    // Try to fetch the page via worker (supplement only)
     let pageText = '';
     try {
       const pageRes = await fetch(`${PROXY_URL}/fetch-page`, {
@@ -976,27 +1083,19 @@ async function startAnalysis() {
         pageText = pageData.text || '';
       }
     } catch(e) {
-      console.warn('Page fetch failed, proceeding with URL only:', e.message);
+      console.warn('Page fetch failed:', e.message);
     }
 
-    setStage('Extracting property details from listing...');
+    setStage('Extracting property details...');
 
-    const propertyData = await callClaude(apiKey, TRUST_SYSTEM,
-      `Extract all property details from this listing.
-
-LISTING URL: ${url}
-
-LISTING PAGE CONTENT (raw text extracted from the page — use this as your primary source):
-${pageText ? pageText.slice(0, 10000) : 'Page content unavailable.'}
-
-Based on the above content, extract and return ONLY a JSON object with this exact structure (no markdown, no preamble):
-{
+    // JSON schema for property extraction
+    const jsonSchema = `{
   "address": "full street address",
   "city": "city name",
   "state": "state abbreviation",
   "zip": "zip code",
   "county": "county name",
-  "asking_price": 000000,
+  "asking_price": 0,
   "price_formatted": "$000,000",
   "bedrooms": 0,
   "bathrooms": 0,
@@ -1024,10 +1123,49 @@ Based on the above content, extract and return ONLY a JSON object with this exac
   "description": "full listing description text",
   "photo_urls": []
 }
+If any field is unknown use null. Return ONLY the JSON object, no markdown, no preamble.`;
 
-If any field is unknown, use null. Do not include any text outside the JSON object.`, 1500);
+    const extractText = `Extract all property details from this listing.
 
-    let property;
+LISTING URL: ${url}
+
+USER-PROVIDED LISTING DETAILS (treat as primary authoritative source):
+${pastedDetails || 'None pasted — extract from image or page content only.'}
+
+AUTO-FETCHED PAGE CONTENT (use to fill gaps only):
+${pageText ? pageText.slice(0, 4000) : 'Not available.'}
+
+Return ONLY this JSON structure filled with real data from the listing:
+${jsonSchema}`;
+
+    // Build message — include image if uploaded (vision)
+    const messageContent = uploadedFile
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: uploadedFile.mediaType, data: uploadedFile.base64 } },
+          { type: 'text', text: extractText }
+        ]
+      : extractText;
+
+    const propertyRaw = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1500,
+        system: TRUST_SYSTEM,
+        messages: [{ role: 'user', content: messageContent }]
+      })
+    });
+    if (!propertyRaw.ok) {
+      const errJson = await propertyRaw.json().catch(() => ({}));
+      throw new Error(errJson?.error?.message || `HTTP ${propertyRaw.status}`);
+    }
+    const propertyJson = await propertyRaw.json();
+    if (propertyJson.error) throw new Error(propertyJson.error.message);
+    const propertyData = propertyJson.content?.[0]?.text;
+    if (!propertyData) throw new Error('Empty response from API on property extraction.');
+
+        let property;
     try {
       property = JSON.parse(propertyData.replace(/```json|```/g, '').trim());
     } catch(e) {
@@ -1701,7 +1839,15 @@ function resetApp() {
   document.getElementById('screen-report').style.display = 'none';
   document.getElementById('screen-input').style.display = 'flex';
   document.getElementById('url-input').value = '';
+  document.getElementById('listing-paste').value = '';
   document.getElementById('error-box').style.display = 'none';
+  uploadedFile = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('drop-label').style.display = 'block';
+  document.getElementById('file-preview').style.display = 'none';
+  const dz = document.getElementById('drop-zone');
+  dz.style.borderColor = 'var(--border)';
+  dz.style.background = 'var(--cream)';
   window.scrollTo(0, 0);
 }
 </script>
