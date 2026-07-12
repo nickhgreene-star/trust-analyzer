@@ -961,9 +961,13 @@ async function callClaude(apiKey, systemPrompt, userContent, maxTokens = 4000, t
       continue;
     }
 
-    // With web search enabled, content interleaves search blocks and (possibly
-    // citation-split) text blocks — join every text block, don't read blocks[0]
+    // With web search enabled, the model narrates between searches ("Let me
+    // look up...") as interleaved text blocks. Only the text AFTER the last
+    // tool/search block is the final answer — join just that.
+    let lastToolIdx = -1;
+    blocks.forEach((b, i) => { if (b.type !== 'text') lastToolIdx = i; });
     const text = blocks
+      .slice(lastToolIdx + 1)
       .filter(b => b.type === 'text')
       .map(b => b.text)
       .join('');
@@ -1026,6 +1030,66 @@ async function readClaudeStream(res) {
     }
   }
   return { blocks: blocks.filter(Boolean), stopReason };
+}
+
+// ── Robust JSON extraction from model output ────────────────────
+// String-aware brace scanner: returns the balanced {...} span starting at
+// `start`, ignoring braces inside quoted strings.
+function balancedSpanFrom(text, start) {
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+    } else {
+      if (c === '"') inStr = true;
+      else if (c === '{') depth++;
+      else if (c === '}') { depth--; if (depth === 0) return text.slice(start, i + 1); }
+    }
+  }
+  return null;
+}
+
+// Every balanced {...} candidate in the text — narration can contain stray
+// braces, so the first balanced span isn't necessarily the JSON object.
+function extractBalancedJson(text) {
+  const spans = [];
+  let from = text.indexOf('{');
+  while (from !== -1) {
+    const span = balancedSpanFrom(text, from);
+    if (span) spans.push(span);
+    from = text.indexOf('{', from + 1);
+  }
+  return spans;
+}
+
+// Parse model output as JSON: strip fences → direct parse → every balanced
+// candidate → trailing-comma cleanup → one cheap model repair pass → error.
+async function parseModelJson(raw, apiKey, label) {
+  const cleaned = raw.replace(/```json|```/g, '').trim();
+  const candidates = [cleaned, ...extractBalancedJson(cleaned)];
+
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch (e) {}
+    try { return JSON.parse(c.replace(/,\s*([}\]])/g, '$1')); } catch (e) {}
+  }
+
+  // Last resort: ask the model to repair its own malformed JSON (no tools, cheap)
+  try {
+    const fixed = await callClaude(apiKey,
+      'You repair malformed JSON. Output ONLY the corrected JSON object with identical data — no commentary, no markdown fences.',
+      `Fix this into strictly valid JSON:\n\n${cleaned.slice(0, 30000)}`, 8000);
+    const cleaned2 = fixed.replace(/```json|```/g, '').trim();
+    for (const c of [cleaned2, ...extractBalancedJson(cleaned2)]) {
+      try { return JSON.parse(c); } catch (e) {}
+    }
+    throw new Error('Repair output was still not valid JSON');
+  } catch (e) {
+    console.warn(`JSON repair failed for ${label}:`, e.message, '\nRaw output:', raw.slice(0, 1000));
+    throw new Error(`Could not parse the ${label} data returned by the model. Try running the analysis again.`);
+  }
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1240,15 +1304,7 @@ ${jsonSchema}`;
 
     const propertyData = await callClaude(apiKey, TRUST_SYSTEM, messageContent, 1500);
 
-        let property;
-    try {
-      property = JSON.parse(propertyData.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      // Try to extract JSON from the response
-      const match = propertyData.match(/\{[\s\S]*\}/);
-      if (match) property = JSON.parse(match[0]);
-      else throw new Error('Could not parse property data. Make sure the URL is a valid listing page.');
-    }
+    const property = await parseModelJson(propertyData, apiKey, 'property listing');
 
     setStep(0, 'done'); await sleep(500);
 
@@ -1305,13 +1361,7 @@ After researching, return ONLY a JSON object (no markdown):
   "infrastructure_concern_note": "any concerns"
 }`, 4000, WEB_SEARCH_TOOLS);
 
-    let location;
-    try {
-      location = JSON.parse(locationData.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      const match = locationData.match(/\{[\s\S]*\}/);
-      location = match ? JSON.parse(match[0]) : {};
-    }
+    const location = await parseModelJson(locationData, apiKey, 'location research');
 
     setStep(1, 'done'); await sleep(500);
 
@@ -1352,13 +1402,7 @@ After researching, return ONLY a JSON object (no markdown):
   "risk_summary": "2-3 sentence plain English summary of the biggest risks at this specific location"
 }`, 4000, WEB_SEARCH_TOOLS);
 
-    let risk;
-    try {
-      risk = JSON.parse(riskData.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      const match = riskData.match(/\{[\s\S]*\}/);
-      risk = match ? JSON.parse(match[0]) : {};
-    }
+    const risk = await parseModelJson(riskData, apiKey, 'risk research');
 
     setStep(2, 'done'); await sleep(500);
 
@@ -1418,13 +1462,7 @@ Return ONLY a JSON object (no markdown):
   "must_verify_before_offer": ["item1", "item2", "item3"]
 }`, 2500);
 
-    let criteria;
-    try {
-      criteria = JSON.parse(criteriaData.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      const match = criteriaData.match(/\{[\s\S]*\}/);
-      criteria = match ? JSON.parse(match[0]) : { required_criteria: [], nice_to_have: [], top_pros: [], top_cons: [] };
-    }
+    const criteria = await parseModelJson(criteriaData, apiKey, 'criteria evaluation');
 
     setStep(3, 'done'); await sleep(500);
 
@@ -1455,13 +1493,7 @@ Return ONLY a JSON object (no markdown):
   "negotiation_note": "Is the price negotiable? What leverage exists? What should they offer if they proceed?"
 }`, 1500);
 
-    let council;
-    try {
-      council = JSON.parse(councilData.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      const match = councilData.match(/\{[\s\S]*\}/);
-      council = match ? JSON.parse(match[0]) : {};
-    }
+    const council = await parseModelJson(councilData, apiKey, 'council analysis');
 
     setStep(4, 'done'); await sleep(500);
 
@@ -1505,13 +1537,7 @@ Scoring guide:
 
 Be honest. Do not inflate scores. Hard disqualifiers should cap the score at 4.9 maximum.`, 1000);
 
-    let scoring;
-    try {
-      scoring = JSON.parse(scoreData.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      const match = scoreData.match(/\{[\s\S]*\}/);
-      scoring = match ? JSON.parse(match[0]) : { score_overall: 0 };
-    }
+    const scoring = await parseModelJson(scoreData, apiKey, 'scoring');
 
     setStep(5, 'done');
     document.getElementById('loading-bar').style.width = '100%';
