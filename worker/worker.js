@@ -40,6 +40,8 @@ export default {
 };
 
 // ── Anthropic Messages API passthrough ─────────────────────────────
+// Streams the response body through untouched — required for SSE (stream: true),
+// which keeps long web-search turns alive past Cloudflare's ~100s idle timeout.
 async function proxyAnthropic(request) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -50,11 +52,10 @@ async function proxyAnthropic(request) {
     },
     body: request.body,
   });
-  const text = await res.text();
-  return new Response(text, {
-    status: res.status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
-  });
+  const headers = new Headers(CORS);
+  headers.set('Content-Type', res.headers.get('Content-Type') || 'application/json');
+  headers.set('Cache-Control', 'no-store');
+  return new Response(res.body, { status: res.status, headers });
 }
 
 // ── Listing page fetch ──────────────────────────────────────────────

@@ -937,6 +937,7 @@ async function callClaude(apiKey, systemPrompt, userContent, maxTokens = 4000, t
     const body = {
       model: MODEL,
       max_tokens: maxTokens,
+      stream: true,   // streaming keeps long web-search turns alive (avoids Cloudflare 524 timeouts)
       system: systemPrompt,
       messages
     };
@@ -953,17 +954,16 @@ async function callClaude(apiKey, systemPrompt, userContent, maxTokens = 4000, t
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
 
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
+    const { blocks, stopReason } = await readClaudeStream(res);
 
-    if (data.stop_reason === 'pause_turn') {
-      messages = [...messages, { role: 'assistant', content: data.content }];
+    if (stopReason === 'pause_turn') {
+      messages = [...messages, { role: 'assistant', content: blocks }];
       continue;
     }
 
     // With web search enabled, content interleaves search blocks and (possibly
-    // citation-split) text blocks — join every text block, don't read content[0]
-    const text = (data.content || [])
+    // citation-split) text blocks — join every text block, don't read blocks[0]
+    const text = blocks
       .filter(b => b.type === 'text')
       .map(b => b.text)
       .join('');
@@ -971,6 +971,61 @@ async function callClaude(apiKey, systemPrompt, userContent, maxTokens = 4000, t
     return text;
   }
   throw new Error('Model paused too many times without finishing.');
+}
+
+// Reassemble a Messages API SSE stream into content blocks + stop_reason.
+// Blocks are rebuilt faithfully (incl. tool_use inputs and citations) so they
+// can be sent back verbatim when the server pauses the turn (pause_turn).
+async function readClaudeStream(res) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  const blocks = [];
+  let stopReason = null;
+
+  const handleEvent = (evt) => {
+    if (evt.type === 'error') {
+      throw new Error(evt.error?.message || 'Stream error from API');
+    } else if (evt.type === 'content_block_start') {
+      const b = JSON.parse(JSON.stringify(evt.content_block));
+      if (b.type === 'tool_use' || b.type === 'server_tool_use') b.__json = '';
+      blocks[evt.index] = b;
+    } else if (evt.type === 'content_block_delta') {
+      const b = blocks[evt.index];
+      if (!b) return;
+      const d = evt.delta;
+      if (d.type === 'text_delta') b.text = (b.text || '') + d.text;
+      else if (d.type === 'input_json_delta') b.__json = (b.__json || '') + d.partial_json;
+      else if (d.type === 'thinking_delta') b.thinking = (b.thinking || '') + d.thinking;
+      else if (d.type === 'signature_delta') b.signature = (b.signature || '') + d.signature;
+      else if (d.type === 'citations_delta') (b.citations = b.citations || []).push(d.citation);
+    } else if (evt.type === 'content_block_stop') {
+      const b = blocks[evt.index];
+      if (b && b.__json !== undefined) {
+        try { if (b.__json) b.input = JSON.parse(b.__json); else b.input = b.input || {}; } catch (e) {}
+        delete b.__json;
+      }
+    } else if (evt.type === 'message_delta') {
+      if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buf.indexOf('\n\n')) !== -1) {
+      const rawEvent = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      for (const line of rawEvent.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (payload && payload !== '[DONE]') handleEvent(JSON.parse(payload));
+      }
+    }
+  }
+  return { blocks: blocks.filter(Boolean), stopReason };
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
