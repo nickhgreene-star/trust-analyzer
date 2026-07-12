@@ -722,7 +722,7 @@ hr.r-divider {
     <label>Property Listing URL</label>
     <input type="text" id="url-input" placeholder="https://www.zillow.com/homedetails/..." autocomplete="off">
 
-    <label>Listing Screenshot or PDF <span style="font-size:0.68rem; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">— screenshot the full listing and drop it here, or paste details manually below</span></label>
+    <label>Listing Screenshot or PDF <span style="font-size:0.68rem; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">— optional: the listing page is read automatically; add a screenshot as backup or to include photos</span></label>
 
     <div id="drop-zone" onclick="document.getElementById('file-input').click()" style="width:100%; border:1.5px dashed var(--border); border-radius:6px; padding:1.25rem 1rem; margin-bottom:0.75rem; text-align:center; cursor:pointer; background:var(--cream); transition:all 0.2s; position:relative;">
       <input type="file" id="file-input" accept="image/*,.pdf" style="display:none" onchange="handleFileSelect(this.files[0])">
@@ -733,7 +733,7 @@ hr.r-divider {
       <div id="file-preview" style="display:none; font-size:0.8rem; color:var(--sage); margin-top:0.3rem;"></div>
     </div>
 
-    <label>Or Paste Listing Details Manually <span style="font-size:0.68rem; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">— price, beds, baths, sqft, lot, description</span></label>
+    <label>Or Paste Listing Details Manually <span style="font-size:0.68rem; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400;">— optional: overrides/supplements the auto-fetched listing data</span></label>
     <textarea id="listing-paste" placeholder="Price: $189,000&#10;3 bed / 2 bath · 1,850 sqft · 4.2 acres&#10;Year built: 1948 · Well & septic&#10;Description: Charming farmhouse on 4 wooded acres with stream..." style="width:100%; border:1.5px solid var(--border); border-radius:6px; padding:0.75rem 1rem; font-family:'DM Sans',sans-serif; font-size:0.85rem; color:var(--ink); background:var(--cream); outline:none; resize:vertical; min-height:80px; margin-bottom:1.1rem; line-height:1.5;" onfocus="this.style.borderColor='#b5882a'" onblur="this.style.borderColor='#ddd8ce'"></textarea>
 
     <div id="error-box" class="error-card" style="display:none;"></div>
@@ -925,28 +925,52 @@ window.addEventListener('load', () => {
 // CLAUDE API CALL
 // ══════════════════════════════════
 const PROXY_URL = 'https://trust-proxy.nick-h-greene.workers.dev';
+const MODEL = 'claude-sonnet-4-6';
+// Server-side web search — grounds location/risk research in real lookups instead of model memory
+const WEB_SEARCH_TOOLS = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6 }];
 
-async function callClaude(apiKey, systemPrompt, userPrompt, maxTokens = 4000) {
-  const res = await fetch(PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+async function callClaude(apiKey, systemPrompt, userContent, maxTokens = 4000, tools = null) {
+  let messages = [{ role: 'user', content: userContent }];
+
+  // Loop to handle pause_turn: server-side web search can pause mid-turn and needs re-sending
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const body = {
+      model: MODEL,
       max_tokens: maxTokens,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }]
-    })
-  });
+      messages
+    };
+    if (tools) body.tools = tools;
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    if (data.stop_reason === 'pause_turn') {
+      messages = [...messages, { role: 'assistant', content: data.content }];
+      continue;
+    }
+
+    // With web search enabled, content interleaves search blocks and (possibly
+    // citation-split) text blocks — join every text block, don't read content[0]
+    const text = (data.content || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+    if (!text) throw new Error('Empty response from API');
+    return text;
   }
-
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  if (!data.content?.[0]?.text) throw new Error('Empty response from API');
-  return data.content[0].text;
+  throw new Error('Model paused too many times without finishing.');
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1057,11 +1081,8 @@ async function startAnalysis() {
     errBox.textContent = 'Please enter a valid property listing URL (Zillow, Realtor.com, etc.).';
     return;
   }
-  if (!uploadedFile && !pastedDetails) {
-    errBox.style.display = 'block';
-    errBox.textContent = 'Please either drop a screenshot/PDF of the listing, or paste the key details manually. This ensures accurate property data.';
-    return;
-  }
+  // Screenshot/paste are now optional — the listing page is fetched directly.
+  // If that fetch comes back blocked AND there's no backup source, we stop below.
 
   // Switch to loading screen
   document.getElementById('screen-input').style.display = 'none';
@@ -1073,8 +1094,9 @@ async function startAnalysis() {
     setStep(0, 'active'); setStage('Fetching property listing page...');
     await sleep(300);
 
-    // Try to fetch the page via worker (supplement only)
+    // Fetch the listing page via the worker (Firecrawl-backed) — primary data source
     let pageText = '';
+    let pageSource = 'none';
     try {
       const pageRes = await fetch(`${PROXY_URL}/fetch-page`, {
         method: 'POST',
@@ -1084,9 +1106,19 @@ async function startAnalysis() {
       if (pageRes.ok) {
         const pageData = await pageRes.json();
         pageText = pageData.text || '';
+        pageSource = pageData.source || 'direct';
       }
     } catch(e) {
       console.warn('Page fetch failed:', e.message);
+    }
+
+    // Detect a blocked/empty fetch — never let the model invent listing facts
+    const fetchBlocked = pageText.length < 300 || /access to this page has been denied|are you a human|press & hold|captcha/i.test(pageText.slice(0, 600));
+    if (fetchBlocked) {
+      pageText = '';
+      if (!uploadedFile && !pastedDetails) {
+        throw new Error('Could not read the listing page (the site blocked automated access), and no screenshot or pasted details were provided. Add a screenshot or paste the listing details so the report uses real data.');
+      }
     }
 
     setStage('Extracting property details...');
@@ -1132,11 +1164,13 @@ If any field is unknown use null. Return ONLY the JSON object, no markdown, no p
 
 LISTING URL: ${url}
 
-USER-PROVIDED LISTING DETAILS (treat as primary authoritative source):
-${pastedDetails || 'None pasted — extract from image or page content only.'}
+LISTING PAGE CONTENT (scraped from the live listing — primary authoritative source):
+${pageText ? pageText.slice(0, 12000) : 'Not available — rely on the user-provided details and/or screenshot below.'}
 
-AUTO-FETCHED PAGE CONTENT (use to fill gaps only):
-${pageText ? pageText.slice(0, 4000) : 'Not available.'}
+USER-PROVIDED LISTING DETAILS (${pageText ? 'use to supplement or correct the page content' : 'primary source'}):
+${pastedDetails || 'None pasted.'}
+
+STRICT RULE: Use ONLY facts stated in the sources above (page content, pasted details, attached image). Do NOT infer or invent values from the address, your memory, or typical listings. Any field not stated in the sources must be null.
 
 Return ONLY this JSON structure filled with real data from the listing:
 ${jsonSchema}`;
@@ -1149,24 +1183,7 @@ ${jsonSchema}`;
         ]
       : extractText;
 
-    const propertyRaw = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 1500,
-        system: TRUST_SYSTEM,
-        messages: [{ role: 'user', content: messageContent }]
-      })
-    });
-    if (!propertyRaw.ok) {
-      const errJson = await propertyRaw.json().catch(() => ({}));
-      throw new Error(errJson?.error?.message || `HTTP ${propertyRaw.status}`);
-    }
-    const propertyJson = await propertyRaw.json();
-    if (propertyJson.error) throw new Error(propertyJson.error.message);
-    const propertyData = propertyJson.content?.[0]?.text;
-    if (!propertyData) throw new Error('Empty response from API on property extraction.');
+    const propertyData = await callClaude(apiKey, TRUST_SYSTEM, messageContent, 1500);
 
         let property;
     try {
@@ -1190,7 +1207,9 @@ County: ${property.county}
 Asking Price: ${property.price_formatted}
 Lot: ${property.lot_acres} acres
 
-Research and return ONLY a JSON object (no markdown):
+Use web search to verify the key facts — elevation, town/county population, crime rate vs state average, median income, and local market data. Do not answer from memory when a search can confirm the number. If a fact cannot be verified, use null or "unknown" rather than guessing.
+
+After researching, return ONLY a JSON object (no markdown):
 {
   "elevation_ft": 0,
   "elevation_note": "description",
@@ -1229,7 +1248,7 @@ Research and return ONLY a JSON object (no markdown):
   "cell_tower_nearby": false,
   "data_center_nearby": false,
   "infrastructure_concern_note": "any concerns"
-}`, 2000);
+}`, 4000, WEB_SEARCH_TOOLS);
 
     let location;
     try {
@@ -1249,7 +1268,9 @@ Research and return ONLY a JSON object (no markdown):
 Address: ${property.address}, ${property.city}, ${property.state} ${property.zip}
 County: ${property.county}
 
-Research and return ONLY a JSON object (no markdown):
+Use web search to verify — FEMA flood zone / flood map info for this area, the municipality's NFIP participation status, EPA Superfund sites near ${property.city} ${property.county} county, county radon zone, and recent flood or disaster declarations. Do not answer from memory when a search can confirm the fact. If a fact cannot be verified, say "unknown" rather than guessing.
+
+After researching, return ONLY a JSON object (no markdown):
 {
   "fema_flood_zone": "X / AE / A / VE / unknown",
   "flood_zone_description": "what it means",
@@ -1274,7 +1295,7 @@ Research and return ONLY a JSON object (no markdown):
   "estimated_annual_flood_insurance": 0,
   "overall_environmental_risk": "low / moderate / high / critical",
   "risk_summary": "2-3 sentence plain English summary of the biggest risks at this specific location"
-}`, 2000);
+}`, 4000, WEB_SEARCH_TOOLS);
 
     let risk;
     try {
